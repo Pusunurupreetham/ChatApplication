@@ -114,7 +114,6 @@ if name == "main":
     queues = [Queue() for _ in range(NUM_USERS)]
     processes = []
 
-Srikar KL, [4/17/2025 11:53 AM]
 for i in range(NUM_USERS):
         p = Process(target=launch_user, args=(i, queues))
         processes.append(p)
