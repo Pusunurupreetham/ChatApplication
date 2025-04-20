@@ -1,0 +1,124 @@
+import tkinter as tk
+from tkinter import scrolledtext, ttk
+from multiprocessing import Process, Queue, freeze_support
+import threading
+
+
+class ChatWindow:
+    def init(self, user_id, all_queues):
+        self.user_id = user_id
+        self.all_queues = all_queues
+        self.receive_queue = all_queues[user_id]
+
+        self.root = tk.Tk()
+        self.root.title(f"User {self.user_id} Chat")
+
+        self.setup_ui()
+        self.start_receiver_thread()
+
+    def setup_ui(self):
+        self.text_area = scrolledtext.ScrolledText(self.root, width=60, height=20)
+        self.text_area.pack(padx=10, pady=5)
+        self.text_area.config(state=tk.DISABLED)
+
+        self.entry_frame = tk.Frame(self.root)
+        self.entry_frame.pack(pady=5)
+
+        # Dropdown for recipient: users and group
+        self.recipient_var = tk.StringVar()
+        user_options = [str(i) for i in range(len(self.all_queues)) if i != self.user_id]
+        user_options.append("Group")
+        self.recipient_dropdown = ttk.Combobox(
+            self.entry_frame,
+            textvariable=self.recipient_var,
+            values=user_options,
+            state="readonly",
+            width=6
+        )
+        self.recipient_dropdown.pack(side=tk.LEFT, padx=5)
+        self.recipient_dropdown.set("Group")  # default to group
+
+        self.text_entry = tk.Entry(self.entry_frame, width=40)
+        self.text_entry.pack(side=tk.LEFT)
+
+        self.send_button = tk.Button(self.entry_frame, text="Send", command=self.send_message)
+        self.send_button.pack(side=tk.LEFT, padx=5)
+
+        self.exit_button = tk.Button(self.root, text="Exit", command=self.exit_app)
+        self.exit_button.pack(pady=5)
+
+        self.text_entry.bind("<Return>", lambda event: self.send_message())
+
+    def send_message(self):
+        message = self.text_entry.get()
+        recipient = self.recipient_var.get()
+
+        if message:
+            if recipient == "Group":
+                for i, q in enumerate(self.all_queues):
+                    if i != self.user_id:
+                        q.put(f"User {self.user_id} (Group): {message}")
+                self.display_message(f"You (Group): {message}", "send")
+            else:
+                recipient_id = int(recipient)
+                self.all_queues[recipient_id].put(f"User {self.user_id} to User {recipient_id}: {message}")
+                self.display_message(f"To User {recipient_id}: {message}", "send")
+
+            self.text_entry.delete(0, tk.END)
+
+            if message.lower() == "exit":
+                self.root.after(100, self.root.destroy)
+
+    def display_message(self, message, msg_type):
+        self.text_area.config(state=tk.NORMAL)
+        self.text_area.insert(tk.END, f"{message}\n")
+        tag = "send" if msg_type == "send" else "receive"
+        self.text_area.tag_add(tag, "end-2c linestart", "end-1c lineend")
+        self.text_area.tag_config("send", foreground="blue")
+        self.text_area.tag_config("receive", foreground="green")
+        self.text_area.config(state=tk.DISABLED)
+        self.text_area.see(tk.END)
+
+    def check_messages(self):
+        while True:
+            if not self.receive_queue.empty():
+                message = self.receive_queue.get()
+                self.display_message(message, "receive")
+                if "exit" in message.lower():
+                    self.root.after(100, self.root.destroy)
+                    break
+
+    def start_receiver_thread(self):
+        thread = threading.Thread(target=self.check_messages, daemon=True)
+        thread.start()
+
+    def exit_app(self):
+        for i, q in enumerate(self.all_queues):
+            if i != self.user_id:
+                q.put(f"User {self.user_id} has left the chat.")
+        self.root.after(100, self.root.destroy)
+
+    def run(self):
+        self.root.mainloop()
+
+
+def launch_user(user_id, queues):
+    app = ChatWindow(user_id, queues)
+    app.run()
+
+
+if name == "main":
+    freeze_support()
+
+    NUM_USERS = 3  # You can increase this number for more users
+    queues = [Queue() for _ in range(NUM_USERS)]
+    processes = []
+
+Srikar KL, [4/17/2025 11:53 AM]
+for i in range(NUM_USERS):
+        p = Process(target=launch_user, args=(i, queues))
+        processes.append(p)
+        p.start()
+
+    for p in processes:
+        p.join()
